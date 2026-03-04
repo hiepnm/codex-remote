@@ -15,8 +15,32 @@ COMMAND_SECRET = os.environ.get("COMMAND_SECRET", "").strip()
 WORKDIR = os.environ.get("WORKDIR", os.getcwd())
 BOT_NAME = os.environ.get("BOT_NAME", "codex-remote")
 CODEX_BIN = os.environ.get("CODEX_BIN", "").strip()
+OFFSET_FILE = os.environ.get("OFFSET_FILE", ".telegram_offset")
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+def log(msg: str):
+    print(msg, flush=True)
+
+def load_offset() -> int | None:
+    try:
+        with open(OFFSET_FILE, "r", encoding="utf-8") as f:
+            raw = f.read().strip()
+        if not raw:
+            return None
+        return int(raw)
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        log(f"[{BOT_NAME}] offset load failed: {e}")
+        return None
+
+def save_offset(offset: int):
+    try:
+        with open(OFFSET_FILE, "w", encoding="utf-8") as f:
+            f.write(str(offset))
+    except Exception as e:
+        log(f"[{BOT_NAME}] offset save failed: {e}")
 
 def resolve_codex_bin() -> str:
     # Prefer explicit path if provided.
@@ -116,11 +140,13 @@ def run_cmd(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
     return p.returncode, out
 
 def main():
-    offset = None
+    offset = load_offset()
+    last_poll_error_at = 0.0
     if COMMAND_SECRET:
         usage = "/codex <secret> <codex-cli-args>"
     else:
         usage = "/codex <codex-cli-args>"
+    log(f"[{BOT_NAME}] started | workdir={WORKDIR} | usage={usage} | offset={offset}")
     send(ALLOWED_CHAT_ID, f"✅ {BOT_NAME} online. Use: {usage}")
 
     while True:
@@ -133,6 +159,10 @@ def main():
             r.raise_for_status()
             data = r.json()
         except requests.RequestException:
+            now = time.time()
+            if now - last_poll_error_at >= 30:
+                log(f"[{BOT_NAME}] telegram unavailable, retrying...")
+                last_poll_error_at = now
             time.sleep(2)
             continue
 
@@ -142,6 +172,7 @@ def main():
 
         for upd in data.get("result", []):
             offset = upd["update_id"] + 1
+            save_offset(offset)
             msg = upd.get("message") or {}
             chat = msg.get("chat") or {}
             chat_id = chat.get("id")
@@ -209,4 +240,7 @@ def main():
         time.sleep(1)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        log(f"[{BOT_NAME}] stopped")

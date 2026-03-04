@@ -1,50 +1,40 @@
 # codex-remote
 
-Small Telegram worker that mirrors `codex` CLI commands to your home/local machine.
+Telegram worker that mirrors `codex` CLI commands to your local machine.
 
-You can send:
+## Overview
 
-```text
-/codex ...
-```
+Send commands from Telegram and run them on your home machine through Codex CLI.
 
-and the worker runs the same command locally with Codex CLI, then sends output back to Telegram.
+- Without secret: `/codex ...`
+- With secret: `/codex <secret> ...`
 
-## What this tool is for
+This is useful when you are outside and still need to control your local Codex agent.
 
-- Control your local Codex agent remotely from Telegram.
-- Run Codex tasks when you are outside.
-- Keep your main workflow on your own machine/repositories.
-
-## Prerequisites
+## Requirements
 
 - Python 3.10+
 - `codex` CLI installed and logged in on the same machine
-- Telegram bot token
-- Your Telegram chat ID
+- Telegram bot token (`TG_BOT_TOKEN`)
+- Your Telegram chat ID (`TG_ALLOWED_CHAT_ID`)
 
-## Get Telegram info
+## Get Telegram Values
 
-1. Create a bot with [@BotFather](https://t.me/BotFather) and copy `TG_BOT_TOKEN`.
-2. Send a message to your bot from your Telegram account.
-3. Open `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`.
-4. Find your `chat.id` in the JSON and use it as `TG_ALLOWED_CHAT_ID`.
+1. Create a bot with [@BotFather](https://t.me/BotFather).
+2. Send any message to your bot.
+3. Open:
+   - `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+4. Read `chat.id` from JSON and use it as `TG_ALLOWED_CHAT_ID`.
 
-## Setup
+## Configuration
 
-1. Clone repo and install deps:
-
-```bash
-pip install requests python-dotenv
-```
-
-2. Create `.env` from `.env.example`:
+Create `.env` from `.env.example`:
 
 ```bash
 cp .env.example .env
 ```
 
-3. Edit `.env`:
+Set values:
 
 ```env
 TG_BOT_TOKEN="..."
@@ -53,36 +43,63 @@ COMMAND_SECRET=""
 CODEX_BIN=""
 WORKDIR="/absolute/path/to/default/workdir"
 BOT_NAME="codex-remote"
+OFFSET_FILE=".telegram_offset"
 ```
 
-`COMMAND_SECRET` is optional:
-- Empty -> use `/codex ...`
-- Set value -> use `/codex <secret> ...`
+Variable notes:
 
-`CODEX_BIN` is optional:
-- Empty -> auto-detect `codex` binary
-- Set value -> use exact binary path (useful to bypass asdf shim issues)
+- `COMMAND_SECRET`
+  - Empty: command format is `/codex ...`
+  - Set: command format is `/codex <secret> ...`
+- `CODEX_BIN`
+  - Empty: auto-detect Codex binary (`asdf which codex` first, then PATH)
+  - Set: force exact Codex binary path
+- `OFFSET_FILE`
+  - File used to persist last Telegram update offset across restarts
 
-## Run worker
+## Run
+
+Install dependencies:
+
+```bash
+pip install requests python-dotenv
+```
+
+Start worker:
 
 ```bash
 python bot_worker.py
 ```
 
-For deployment, keep it running with your preferred process manager (for example: `systemd`, `supervisord`, `tmux`, `screen`, or Docker).
+For deployment, run it with a process manager (`systemd`, `supervisord`, `tmux`, `screen`, or Docker).
 
-## Telegram usage
+## Telegram Usage
 
-- `/start` -> quick help
-- `/codex --help` -> show Codex help
-- `/codex exec "say hello"` -> run a simple Codex task
-- `/codex -C /path/to/repo exec "..."` -> run in a specific repo
+- `/start` for quick help
+- `/codex --help`
+- `/codex exec "say hello"`
+- `/codex -C /path/to/repo exec "..."`
 
-The worker only accepts messages from `TG_ALLOWED_CHAT_ID`.
+Only `TG_ALLOWED_CHAT_ID` is accepted.
 
-## Security recommendation
+## Security Checklist
 
+Apply these before using in production:
+
+- Rotate `TG_BOT_TOKEN` if it was ever exposed.
+- Enable Telegram 2FA, app passcode, and SIM protection.
 - Set `COMMAND_SECRET` in `.env` for a second auth layer.
-- When `COMMAND_SECRET` is set, every command must be: `/codex <secret> ...`.
-- Rotate `COMMAND_SECRET` regularly (for example when you are about to go outside and run this worker).
-- Stop this worker when you are at home and can run Codex directly on your machine.
+- Use command format `/codex <secret> ...` when `COMMAND_SECRET` is set.
+- Rotate `COMMAND_SECRET` regularly, especially before each trip/outside session.
+- Run worker with a dedicated OS user and minimum permissions.
+- Do not run this worker on your primary user account that holds sensitive data.
+- When you are at home, stop this worker and use local Codex directly.
+
+## Incident Response
+
+If you suspect exposure:
+
+1. Stop worker immediately.
+2. Rotate `TG_BOT_TOKEN` via BotFather.
+3. Rotate `COMMAND_SECRET`.
+4. Review recent Telegram chats and machine activity logs.
