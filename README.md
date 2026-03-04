@@ -50,6 +50,7 @@ cp .env.example .env
 TG_BOT_TOKEN="..."
 TG_ALLOWED_CHAT_ID="..."
 COMMAND_SECRET=""
+CODEX_BIN=""
 WORKDIR="/absolute/path/to/default/workdir"
 BOT_NAME="codex-remote"
 ```
@@ -57,6 +58,10 @@ BOT_NAME="codex-remote"
 `COMMAND_SECRET` is optional:
 - Empty -> use `/codex ...`
 - Set value -> use `/codex <secret> ...`
+
+`CODEX_BIN` is optional:
+- Empty -> auto-detect `codex` binary
+- Set value -> use exact binary path (useful to bypass asdf shim issues)
 
 ## Run worker
 

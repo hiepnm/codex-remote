@@ -2,6 +2,7 @@ import os
 import time
 import shlex
 import hmac
+import shutil
 import requests
 import subprocess
 from dotenv import load_dotenv
@@ -13,8 +14,30 @@ ALLOWED_CHAT_ID = int(os.environ["TG_ALLOWED_CHAT_ID"])
 COMMAND_SECRET = os.environ.get("COMMAND_SECRET", "").strip()
 WORKDIR = os.environ.get("WORKDIR", os.getcwd())
 BOT_NAME = os.environ.get("BOT_NAME", "codex-remote")
+CODEX_BIN = os.environ.get("CODEX_BIN", "").strip()
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+def resolve_codex_bin() -> str:
+    # Prefer explicit path if provided.
+    if CODEX_BIN:
+        return CODEX_BIN
+    # Avoid asdf shim to prevent `.tool-versions` dependency in current cwd.
+    try:
+        p = subprocess.run(
+            ["asdf", "which", "codex"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=5,
+        )
+        candidate = (p.stdout or "").strip()
+        if p.returncode == 0 and candidate:
+            return candidate
+    except Exception:
+        pass
+    # Fallback to whatever is on PATH.
+    return shutil.which("codex") or "codex"
 
 def send(chat_id: int, text: str):
     try:
@@ -78,8 +101,11 @@ def normalize_cd_position(argv: list[str]) -> list[str]:
     return ["codex"] + kept + [subcmd] + cd_tokens + after
 
 def run_cmd(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
+    run_argv = argv[:]
+    if run_argv and run_argv[0] == "codex":
+        run_argv[0] = resolve_codex_bin()
     p = subprocess.run(
-        argv,
+        run_argv,
         cwd=WORKDIR,  # cwd mặc định, codex tự xử lý -C/--cd
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
