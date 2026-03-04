@@ -63,15 +63,18 @@ def resolve_codex_bin() -> str:
     # Fallback to whatever is on PATH.
     return shutil.which("codex") or "codex"
 
-def send(chat_id: int, text: str):
+def send(chat_id: int, text: str) -> bool:
     try:
-        requests.post(
+        r = requests.post(
             f"{API}/sendMessage",
             json={"chat_id": chat_id, "text": text},
             timeout=(10, 30),
         )
-    except requests.RequestException:
-        pass
+        r.raise_for_status()
+        return True
+    except requests.RequestException as e:
+        log(f"[{BOT_NAME}] send failed: {e.__class__.__name__}: {e}")
+        return False
 
 def has_any_flag(argv: list[str], flags: set[str]) -> bool:
     return any(a in flags for a in argv)
