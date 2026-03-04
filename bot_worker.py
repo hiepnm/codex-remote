@@ -10,7 +10,7 @@ load_dotenv()
 
 BOT_TOKEN = os.environ["TG_BOT_TOKEN"]
 ALLOWED_CHAT_ID = int(os.environ["TG_ALLOWED_CHAT_ID"])
-COMMAND_SECRET = os.environ["COMMAND_SECRET"]
+COMMAND_SECRET = os.environ.get("COMMAND_SECRET", "").strip()
 WORKDIR = os.environ.get("WORKDIR", os.getcwd())
 BOT_NAME = os.environ.get("BOT_NAME", "codex-remote")
 
@@ -91,7 +91,11 @@ def run_cmd(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
 
 def main():
     offset = None
-    send(ALLOWED_CHAT_ID, f"✅ {BOT_NAME} online. Use: /codex <secret> <codex-cli-args>")
+    if COMMAND_SECRET:
+        usage = "/codex <secret> <codex-cli-args>"
+    else:
+        usage = "/codex <codex-cli-args>"
+    send(ALLOWED_CHAT_ID, f"✅ {BOT_NAME} online. Use: {usage}")
 
     while True:
         params = {"timeout": 50}
@@ -121,7 +125,10 @@ def main():
                 continue
 
             if text.startswith("/start"):
-                send(chat_id, "Send: /codex <secret> <args>. Example: /codex mysecret exec \"hello\"")
+                if COMMAND_SECRET:
+                    send(chat_id, "Send: /codex <secret> <args>. Example: /codex mysecret exec \"hello\"")
+                else:
+                    send(chat_id, "Send: /codex <args>. Example: /codex exec \"hello\"")
                 continue
 
             if not text.startswith("/codex "):
@@ -136,21 +143,28 @@ def main():
                 .replace("‑", "-")
             )
             if not body:
-                send(chat_id, "Example:\n/codex mysecret exec \"hello\"\n/codex mysecret --help")
+                if COMMAND_SECRET:
+                    send(chat_id, "Example:\n/codex mysecret exec \"hello\"\n/codex mysecret --help")
+                else:
+                    send(chat_id, "Example:\n/codex exec \"hello\"\n/codex --help")
                 continue
 
             try:
                 parts = shlex.split(body)
-                if len(parts) < 2:
-                    send(chat_id, "Usage: /codex <secret> <codex-cli-args>")
-                    continue
-
-                provided_secret = parts[0]
-                if not hmac.compare_digest(provided_secret, COMMAND_SECRET):
-                    send(chat_id, "⛔ Unauthorized")
-                    continue
-
-                argv = ["codex"] + parts[1:]
+                if COMMAND_SECRET:
+                    if len(parts) < 2:
+                        send(chat_id, "Usage: /codex <secret> <codex-cli-args>")
+                        continue
+                    provided_secret = parts[0]
+                    if not hmac.compare_digest(provided_secret, COMMAND_SECRET):
+                        send(chat_id, "⛔ Unauthorized")
+                        continue
+                    argv = ["codex"] + parts[1:]
+                else:
+                    if not parts:
+                        send(chat_id, "Usage: /codex <codex-cli-args>")
+                        continue
+                    argv = ["codex"] + parts
                 argv = maybe_add_workdir(argv)  # <- nếu không thích auto -C, mình sẽ chỉ bạn bỏ
                 argv = normalize_cd_position(argv)
                 send(chat_id, f"⏳ Running:\n{shlex.join(argv)}")

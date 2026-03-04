@@ -5,7 +5,7 @@ Small Telegram worker that mirrors `codex` CLI commands to your home/local machi
 You can send:
 
 ```text
-/codex <secret> ...
+/codex ...
 ```
 
 and the worker runs the same command locally with Codex CLI, then sends output back to Telegram.
@@ -49,10 +49,14 @@ cp .env.example .env
 ```env
 TG_BOT_TOKEN="..."
 TG_ALLOWED_CHAT_ID="..."
-COMMAND_SECRET="..."
+COMMAND_SECRET=""
 WORKDIR="/absolute/path/to/default/workdir"
 BOT_NAME="codex-remote"
 ```
+
+`COMMAND_SECRET` is optional:
+- Empty -> use `/codex ...`
+- Set value -> use `/codex <secret> ...`
 
 ## Run worker
 
@@ -65,9 +69,15 @@ For deployment, keep it running with your preferred process manager (for example
 ## Telegram usage
 
 - `/start` -> quick help
-- `/codex <secret> --help` -> show Codex help
-- `/codex <secret> exec "say hello"` -> run a simple Codex task
-- `/codex <secret> -C /path/to/repo exec "..."` -> run in a specific repo
+- `/codex --help` -> show Codex help
+- `/codex exec "say hello"` -> run a simple Codex task
+- `/codex -C /path/to/repo exec "..."` -> run in a specific repo
 
 The worker only accepts messages from `TG_ALLOWED_CHAT_ID`.
-The worker also requires `COMMAND_SECRET` in every `/codex` command.
+
+## Security recommendation
+
+- Set `COMMAND_SECRET` in `.env` for a second auth layer.
+- When `COMMAND_SECRET` is set, every command must be: `/codex <secret> ...`.
+- Rotate `COMMAND_SECRET` regularly (for example when you are about to go outside and run this worker).
+- Stop this worker when you are at home and can run Codex directly on your machine.
