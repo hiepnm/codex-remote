@@ -16,6 +16,7 @@ WORKDIR = os.environ.get("WORKDIR", os.getcwd())
 BOT_NAME = os.environ.get("BOT_NAME", "codex-remote")
 CODEX_BIN = os.environ.get("CODEX_BIN", "").strip()
 OFFSET_FILE = os.environ.get("OFFSET_FILE", ".telegram_offset")
+TELEGRAM_CHUNK_SIZE = 3500
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
@@ -75,6 +76,13 @@ def send(chat_id: int, text: str) -> bool:
     except requests.RequestException as e:
         log(f"[{BOT_NAME}] send failed: {e.__class__.__name__}: {e}")
         return False
+
+def send_chunked(chat_id: int, text: str, chunk_size: int = TELEGRAM_CHUNK_SIZE):
+    if not text:
+        send(chat_id, "")
+        return
+    for i in range(0, len(text), chunk_size):
+        send(chat_id, text[i : i + chunk_size])
 
 def has_any_flag(argv: list[str], flags: set[str]) -> bool:
     return any(a in flags for a in argv)
@@ -139,7 +147,7 @@ def run_cmd(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
         text=True,
         timeout=timeout,
     )
-    out = (p.stdout or "")[-3500:]
+    out = p.stdout or ""
     return p.returncode, out
 
 def main():
@@ -231,7 +239,7 @@ def main():
 
                 code, out = run_cmd(argv, timeout=1800)
                 status = "✅ Done" if code == 0 else f"❌ Exit {code}"
-                send(chat_id, f"{status}\n\n{out}")
+                send_chunked(chat_id, f"{status}\n\n{out}")
 
             except ValueError as e:
                 send(chat_id, f"⚠️ Parse error: {e}\nTip: nhớ đóng dấu \"...\"")

@@ -79,6 +79,7 @@ For deployment, run it with a process manager (`systemd`, `supervisord`, `tmux`,
 - `/codex --help`
 - `/codex exec "say hello"`
 - `/codex -C /path/to/repo exec "..."`
+- Long command outputs are split into ~3500-char chunks for Telegram delivery.
 
 Only `TG_ALLOWED_CHAT_ID` is accepted.
 
