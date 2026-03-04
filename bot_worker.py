@@ -1,6 +1,7 @@
 import os
 import time
 import shlex
+import hmac
 import requests
 import subprocess
 from dotenv import load_dotenv
@@ -9,6 +10,7 @@ load_dotenv()
 
 BOT_TOKEN = os.environ["TG_BOT_TOKEN"]
 ALLOWED_CHAT_ID = int(os.environ["TG_ALLOWED_CHAT_ID"])
+COMMAND_SECRET = os.environ["COMMAND_SECRET"]
 WORKDIR = os.environ.get("WORKDIR", os.getcwd())
 BOT_NAME = os.environ.get("BOT_NAME", "codex-remote")
 
@@ -87,13 +89,9 @@ def run_cmd(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
     out = (p.stdout or "")[-3500:]
     return p.returncode, out
 
-def parse_args(body: str) -> list[str]:
-    # /codex <body>  ->  ["codex", ...]
-    return ["codex"] + shlex.split(body)
-
 def main():
     offset = None
-    send(ALLOWED_CHAT_ID, f"✅ {BOT_NAME} online. Use: /codex <codex-cli-args>")
+    send(ALLOWED_CHAT_ID, f"✅ {BOT_NAME} online. Use: /codex <secret> <codex-cli-args>")
 
     while True:
         params = {"timeout": 50}
@@ -123,7 +121,7 @@ def main():
                 continue
 
             if text.startswith("/start"):
-                send(chat_id, "Send: /codex <args>. Example: /codex exec \"hello\"")
+                send(chat_id, "Send: /codex <secret> <args>. Example: /codex mysecret exec \"hello\"")
                 continue
 
             if not text.startswith("/codex "):
@@ -138,11 +136,21 @@ def main():
                 .replace("‑", "-")
             )
             if not body:
-                send(chat_id, "Ví dụ:\n/codex exec \"hello\"\n/codex --help")
+                send(chat_id, "Example:\n/codex mysecret exec \"hello\"\n/codex mysecret --help")
                 continue
 
             try:
-                argv = parse_args(body)
+                parts = shlex.split(body)
+                if len(parts) < 2:
+                    send(chat_id, "Usage: /codex <secret> <codex-cli-args>")
+                    continue
+
+                provided_secret = parts[0]
+                if not hmac.compare_digest(provided_secret, COMMAND_SECRET):
+                    send(chat_id, "⛔ Unauthorized")
+                    continue
+
+                argv = ["codex"] + parts[1:]
                 argv = maybe_add_workdir(argv)  # <- nếu không thích auto -C, mình sẽ chỉ bạn bỏ
                 argv = normalize_cd_position(argv)
                 send(chat_id, f"⏳ Running:\n{shlex.join(argv)}")
