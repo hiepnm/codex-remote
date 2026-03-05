@@ -78,6 +78,7 @@ python dev_runner.py
 ```
 
 `dev_runner.py` watches `.py` files and `.env`, then restarts `bot_worker.py` automatically when files change.
+When dev runner stops (Ctrl+C/SIGTERM), it also sends a stop notice to your Telegram chat.
 
 For deployment, run it with a process manager (`systemd`, `supervisord`, `tmux`, `screen`, or Docker).
 

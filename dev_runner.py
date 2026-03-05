@@ -1,14 +1,22 @@
 import os
+import json
 import signal
 import subprocess
 import sys
 import time
+from urllib import request
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 WATCH_FILES = {".env", "bot_worker.py", "README.md"}
 WATCH_EXTS = {".py"}
 POLL_SECONDS = 0.8
 IGNORED_DIRS = {".git", "__pycache__", ".venv", "venv"}
+BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "").strip()
+ALLOWED_CHAT_ID = os.environ.get("TG_ALLOWED_CHAT_ID", "").strip()
+BOT_NAME = os.environ.get("BOT_NAME", "codex-remote").strip() or "codex-remote"
 
 
 def list_watch_paths(root: Path) -> list[Path]:
@@ -58,6 +66,20 @@ def stop_worker(proc: subprocess.Popen[str]):
         proc.wait(timeout=5)
 
 
+def notify_telegram(text: str):
+    if not BOT_TOKEN or not ALLOWED_CHAT_ID:
+        return
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = json.dumps({"chat_id": ALLOWED_CHAT_ID, "text": text}).encode("utf-8")
+    req = request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with request.urlopen(req, timeout=8) as _:
+            pass
+    except Exception:
+        # Keep shutdown path resilient even if Telegram is temporarily unavailable.
+        pass
+
+
 def main():
     root = Path.cwd()
     proc = start_worker()
@@ -66,6 +88,7 @@ def main():
     def handle_stop(_sig, _frame):
         stop_worker(proc)
         print("[dev-runner] stopped", flush=True)
+        notify_telegram(f"🛑 {BOT_NAME} dev-runner stopped")
         raise SystemExit(0)
 
     signal.signal(signal.SIGINT, handle_stop)
